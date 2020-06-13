@@ -11,7 +11,7 @@
 #include <iostream>
 
 int main(int argc, const char * argv[]) {
-    sf::TcpSocket socket;
+    /*sf::TcpSocket socket;
     
     std::cout << "Connecting to socket...";
     if (socket.connect("192.168.8.119", 53000) != sf::Socket::Done) {
@@ -27,7 +27,18 @@ int main(int argc, const char * argv[]) {
         std::cout << " ERROR!\n";
         return EXIT_FAILURE;
     }
-    std::cout << " OK!\n";
+    std::cout << " OK!\n";*/
+    
+    Renderer renderer;
+    auto window = renderer.Initialize();
+    
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+        
+        renderer.DrawFrame();
+    }
+    
+    renderer.Destroy();
     
     return EXIT_SUCCESS;
 }
