@@ -6,15 +6,20 @@
 
 #include <iostream>
 #include <vector>
+#include <set>
 #include <cstring>
 #include <algorithm>
 #include <optional>
 
-constexpr int WIDTH = 800;
-constexpr int HEIGHT = 600;
+constexpr unsigned int WIDTH = 800;
+constexpr unsigned int HEIGHT = 600;
 
 const std::vector<const char*> ValidationLayers = {
     "VK_LAYER_KHRONOS_validation"
+};
+
+const std::vector<const char*> DeviceExtensions = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
 #ifdef NDEBUG
@@ -26,8 +31,17 @@ const std::vector<const char*> ValidationLayers = {
 class Renderer {
     struct QueueFamilyIndices {
         std::optional<uint32_t> GraphicsFamily;
+        std::optional<uint32_t> PresentFamily;
         
-        bool IsComplete() const { return GraphicsFamily.has_value(); }
+        bool IsComplete() const {
+            return GraphicsFamily.has_value() && PresentFamily.has_value();
+        }
+    };
+    
+    struct SwapChainSupportDetails {
+        VkSurfaceCapabilitiesKHR Capabilities;
+        std::vector<VkSurfaceFormatKHR> Formats;
+        std::vector<VkPresentModeKHR> PresentModes;
     };
     
 public:
@@ -41,15 +55,30 @@ private:
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
     VkDevice m_Device;
     VkQueue m_GraphicsQueue;
+    VkSurfaceKHR m_Surface;
+    VkQueue m_PresentQueue;
+    VkSwapchainKHR m_Swapchain;
+    std::vector<VkImage> m_SwapchainImages;
+    VkFormat m_SwapchainImageFormat;
+    VkExtent2D m_SwapchainExtent;
+    std::vector<VkImageView> m_SwapchainImageViews;
     
     bool CreateInstance();
+    bool CreateSurface();
     bool PickPhysicalDevice();
     bool CreateLogiaclDevice();
+    bool CreateSwapchain();
+    bool CreateImageViews();
     
     GLFWwindow* CreateWindow() const;
     bool CheckValidationLayers() const;
     bool IsDeviceSuitable(VkPhysicalDevice device) const;
+    bool CheckDeviceExtensionsSupport(VkPhysicalDevice device) const;
     QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) const;
+    SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device) const;
+    VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) const;
+    VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& modes) const;
+    VkExtent2D ChooseSwapExtent(VkSurfaceCapabilitiesKHR capabilities) const;
 };
 
 #endif
