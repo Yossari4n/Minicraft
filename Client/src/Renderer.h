@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <set>
 #include <cstring>
@@ -62,6 +63,9 @@ private:
     VkFormat m_SwapchainImageFormat;
     VkExtent2D m_SwapchainExtent;
     std::vector<VkImageView> m_SwapchainImageViews;
+    VkRenderPass m_RenderPass;
+    VkPipelineLayout m_PipelineLayout;
+    VkPipeline m_GraphicsPipeline;
     
     bool CreateInstance();
     bool CreateSurface();
@@ -69,6 +73,8 @@ private:
     bool CreateLogiaclDevice();
     bool CreateSwapchain();
     bool CreateImageViews();
+    bool CreateRenderPass();
+    bool CreateGraphicPipeline();
     
     GLFWwindow* CreateWindow() const;
     bool CheckValidationLayers() const;
@@ -79,6 +85,8 @@ private:
     VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) const;
     VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& modes) const;
     VkExtent2D ChooseSwapExtent(VkSurfaceCapabilitiesKHR capabilities) const;
+    std::vector<char> ReadFile(const std::string& filename) const;
+    VkShaderModule CreateShaderModule(const std::vector<char>& code) const;
 };
 
 #endif

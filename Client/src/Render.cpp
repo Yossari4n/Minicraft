@@ -9,6 +9,8 @@ GLFWwindow* Renderer::Initialize() {
     if (vulkan_available) vulkan_available = CreateLogiaclDevice();
     if (vulkan_available) vulkan_available = CreateSwapchain();
     if (vulkan_available) vulkan_available = CreateImageViews();
+    if (vulkan_available) vulkan_available = CreateRenderPass();
+    if (vulkan_available) vulkan_available = CreateGraphicPipeline();
     
     if (!vulkan_available) {
         glfwSetWindowTitle(m_Window, "Failed to initialize Vulkan");
@@ -22,10 +24,12 @@ void Renderer::DrawFrame() {
 }
 
 void Renderer::Destroy() {
+    vkDestroyPipeline(m_Device, m_GraphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(m_Device, m_PipelineLayout, nullptr);
+    vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);
     for (auto view : m_SwapchainImageViews) {
         vkDestroyImageView(m_Device, view, nullptr);
     }
-    
     vkDestroySwapchainKHR(m_Device, m_Swapchain, nullptr);
     vkDestroyDevice(m_Device, nullptr);
     vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
@@ -42,7 +46,7 @@ bool Renderer::CreateInstance() {
     
     VkApplicationInfo app_info{};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "Minicraft\n";
+    app_info.pApplicationName = "Minicraft";
     app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     app_info.pEngineName = "No Engine";
     app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -232,6 +236,155 @@ bool Renderer::CreateImageViews() {
     return true;
 }
 
+bool Renderer::CreateRenderPass() {
+    VkAttachmentDescription color_attachment{};
+    color_attachment.format = m_SwapchainImageFormat;
+    color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    
+    VkAttachmentReference color_attachment_ref{};
+    color_attachment_ref.attachment = 0;
+    color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &color_attachment_ref;
+    
+    VkRenderPassCreateInfo render_pass_create_info{};
+    render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_create_info.attachmentCount = 1;
+    render_pass_create_info.pAttachments = &color_attachment;
+    render_pass_create_info.subpassCount = 1;
+    render_pass_create_info.pSubpasses = &subpass;
+    
+    if (vkCreateRenderPass(m_Device, &render_pass_create_info, nullptr, &m_RenderPass) != VK_SUCCESS) {
+        std::cerr << "Failed to create render pass\n";
+        return false;
+    }
+    
+    return true;
+}
+
+bool Renderer::CreateGraphicPipeline() {
+    auto vert_shader_code = ReadFile("resources/vert.spv");
+    auto frag_shader_code = ReadFile("resources/frag.spv");
+    
+    VkShaderModule vert_shader_module = CreateShaderModule(vert_shader_code);
+    VkShaderModule frag_shader_module = CreateShaderModule(frag_shader_code);
+    
+    VkPipelineShaderStageCreateInfo vert_create_info{};
+    vert_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vert_create_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vert_create_info.module = vert_shader_module;
+    vert_create_info.pName = "main";
+    
+    VkPipelineShaderStageCreateInfo frag_create_info{};
+    frag_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    frag_create_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    frag_create_info.module = frag_shader_module;
+    frag_create_info.pName = "main";
+    
+    VkPipelineShaderStageCreateInfo shader_stages[] = { vert_create_info, frag_create_info };
+    
+    VkPipelineVertexInputStateCreateInfo vert_input_create_info{};
+    vert_input_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vert_input_create_info.vertexBindingDescriptionCount = 0;
+    vert_input_create_info.pVertexBindingDescriptions = nullptr;
+    vert_input_create_info.vertexAttributeDescriptionCount = 0;
+    vert_input_create_info.pVertexAttributeDescriptions = nullptr;
+    
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info{};
+    input_assembly_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    input_assembly_create_info.primitiveRestartEnable = VK_FALSE;
+    
+    VkViewport viewport{};
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = static_cast<float>(m_SwapchainExtent.width);
+    viewport.height = static_cast<float>(m_SwapchainExtent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    
+    VkRect2D scissors{};
+    scissors.offset = {0, 0};
+    scissors.extent = m_SwapchainExtent;
+    
+    VkPipelineViewportStateCreateInfo viewport_state_create_info{};
+    viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state_create_info.viewportCount = 1;
+    viewport_state_create_info.pViewports = &viewport;
+    viewport_state_create_info.scissorCount = 1;
+    viewport_state_create_info.pScissors = &scissors;
+    
+    VkPipelineRasterizationStateCreateInfo rasterization_create_info{};
+    rasterization_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterization_create_info.depthClampEnable = VK_FALSE;
+    rasterization_create_info.rasterizerDiscardEnable = VK_FALSE;
+    rasterization_create_info.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterization_create_info.lineWidth = 1.0f;
+    rasterization_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterization_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterization_create_info.depthBiasEnable = VK_FALSE;
+    
+    VkPipelineMultisampleStateCreateInfo multisampling_create_info{};
+    multisampling_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling_create_info.sampleShadingEnable = VK_FALSE;
+    multisampling_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    
+    VkPipelineColorBlendAttachmentState color_blend_attachment{};
+    color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    color_blend_attachment.blendEnable = VK_FALSE;
+    
+    VkPipelineColorBlendStateCreateInfo color_blend_create_info{};
+    color_blend_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blend_create_info.logicOpEnable = VK_FALSE;
+    color_blend_create_info.attachmentCount = 1;
+    color_blend_create_info.pAttachments = &color_blend_attachment;
+    
+    VkPipelineLayoutCreateInfo layout_create_info{};
+    layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layout_create_info.setLayoutCount = 0;
+    layout_create_info.pSetLayouts = nullptr;
+    layout_create_info.pushConstantRangeCount = 0;
+    layout_create_info.pPushConstantRanges = nullptr;
+    
+    if (vkCreatePipelineLayout(m_Device, &layout_create_info, nullptr, &m_PipelineLayout) != VK_SUCCESS) {
+        std::cerr << "Failed to create pipeline layout\n";
+        return false;
+    }
+    
+    VkGraphicsPipelineCreateInfo pipeline_create_info{};
+    pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_create_info.stageCount = 2;
+    pipeline_create_info.pStages = shader_stages;
+    pipeline_create_info.pVertexInputState = &vert_input_create_info;
+    pipeline_create_info.pInputAssemblyState = &input_assembly_create_info;
+    pipeline_create_info.pViewportState = &viewport_state_create_info;
+    pipeline_create_info.pRasterizationState = &rasterization_create_info;
+    pipeline_create_info.pMultisampleState = &multisampling_create_info;
+    pipeline_create_info.pColorBlendState = &color_blend_create_info;
+    pipeline_create_info.layout = m_PipelineLayout;
+    pipeline_create_info.renderPass = m_RenderPass;
+    pipeline_create_info.subpass = 0;
+    
+    if (vkCreateGraphicsPipelines(m_Device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &m_GraphicsPipeline) != VK_SUCCESS) {
+        std::cerr << "Failed to create graphics pipeline\n";
+        return false;
+    }
+    
+    vkDestroyShaderModule(m_Device, vert_shader_module, nullptr);
+    vkDestroyShaderModule(m_Device, frag_shader_module, nullptr);
+    
+    return true;
+}
+
 GLFWwindow* Renderer::CreateWindow() const {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -365,4 +518,35 @@ VkExtent2D Renderer::ChooseSwapExtent(VkSurfaceCapabilitiesKHR capabilities) con
     extend.height = std::clamp(HEIGHT, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
     
     return extend;
+}
+
+std::vector<char> Renderer::ReadFile(const std::string &filename) const {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+    
+    if (!file.is_open()) {
+        throw std::runtime_error("failed to open file!");
+    }
+    
+    auto file_size = static_cast<size_t>(file.tellg());
+    
+    std::vector<char> buffer(file_size);
+    file.seekg(0);
+    file.read(buffer.data(), file_size);
+    
+    return buffer;
+}
+
+VkShaderModule Renderer::CreateShaderModule(const std::vector<char> &code) const {
+    VkShaderModuleCreateInfo create_info;
+    create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    create_info.codeSize = code.size();
+    create_info.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    
+    VkShaderModule shader_module;
+    if (vkCreateShaderModule(m_Device, &create_info, nullptr, &shader_module) != VK_SUCCESS) {
+        std::cerr << "Failed to create shader module\n";
+        return VK_NULL_HANDLE;
+    }
+    
+    return shader_module;
 }
