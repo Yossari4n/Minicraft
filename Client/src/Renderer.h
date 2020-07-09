@@ -14,6 +14,13 @@
 
 constexpr unsigned int WIDTH = 800;
 constexpr unsigned int HEIGHT = 600;
+constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+
+#ifdef NDEBUG
+    constexpr bool EnableValidationLayers = false;
+#else
+    constexpr bool EnableValidationLayers = true;
+#endif
 
 const std::vector<const char*> ValidationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -22,12 +29,6 @@ const std::vector<const char*> ValidationLayers = {
 const std::vector<const char*> DeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
-
-#ifdef NDEBUG
-    const bool EnableValidationLayers = false;
-#else
-    const bool EnableValidationLayers = true;
-#endif
 
 class Renderer {
     struct QueueFamilyIndices {
@@ -66,6 +67,15 @@ private:
     VkRenderPass m_RenderPass;
     VkPipelineLayout m_PipelineLayout;
     VkPipeline m_GraphicsPipeline;
+    std::vector<VkFramebuffer> m_SwapchainFramebuffers;
+    VkCommandPool m_CommandPool;
+    std::vector<VkCommandBuffer> m_CommandBuffers;
+    //TODO std::array
+    std::vector<VkSemaphore> m_ImageAvailableSemaphores;
+    std::vector<VkSemaphore> m_RenderFinishedSemaphores;
+    std::vector<VkFence> m_InFlightFences;
+    std::vector<VkFence> m_ImagesInFlight;
+    size_t m_CurrentFrame;
     
     bool CreateInstance();
     bool CreateSurface();
@@ -75,6 +85,10 @@ private:
     bool CreateImageViews();
     bool CreateRenderPass();
     bool CreateGraphicPipeline();
+    bool CreateFramebuffers();
+    bool CreateCommandPool();
+    bool CreateCommandBuffers();
+    bool CreateSyncObjects();
     
     GLFWwindow* CreateWindow() const;
     bool CheckValidationLayers() const;

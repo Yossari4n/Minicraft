@@ -37,7 +37,6 @@ int main(int argc, const char * argv[]) {
         
         renderer.DrawFrame();
     }
-    
     renderer.Destroy();
     
     return EXIT_SUCCESS;
