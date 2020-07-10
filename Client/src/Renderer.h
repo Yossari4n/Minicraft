@@ -46,6 +46,11 @@ class Renderer {
         std::vector<VkPresentModeKHR> PresentModes;
     };
     
+    static void FramebufferResizeCallback(GLFWwindow *window, int width, int height) {
+        auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
+        app->m_FramebufferResized = true;
+    }
+    
 public:
     [[nodiscard]] GLFWwindow* Initialize();
     void DrawFrame();
@@ -77,6 +82,12 @@ private:
     std::vector<VkFence> m_ImagesInFlight;
     size_t m_CurrentFrame;
     
+    bool m_FramebufferResized = false;
+    
+    void DestroySwapchain();
+    void RecreateSwapchain();
+    
+    void CreateWindow();
     bool CreateInstance();
     bool CreateSurface();
     bool PickPhysicalDevice();
@@ -90,7 +101,6 @@ private:
     bool CreateCommandBuffers();
     bool CreateSyncObjects();
     
-    GLFWwindow* CreateWindow() const;
     bool CheckValidationLayers() const;
     bool IsDeviceSuitable(VkPhysicalDevice device) const;
     bool CheckDeviceExtensionsSupport(VkPhysicalDevice device) const;
