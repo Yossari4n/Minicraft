@@ -3,6 +3,7 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -11,6 +12,7 @@
 #include <cstring>
 #include <algorithm>
 #include <optional>
+#include <array>
 
 constexpr unsigned int WIDTH = 800;
 constexpr unsigned int HEIGHT = 600;
@@ -52,6 +54,35 @@ class Renderer {
     }
     
 public:
+    struct Vertex {
+        glm::vec2 Position;
+        glm::vec3 Color;
+        
+        static VkVertexInputBindingDescription BingindDescription() {
+            VkVertexInputBindingDescription description{};
+            description.binding = 0;
+            description.stride = sizeof(Vertex);
+            description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+            return description;
+        }
+        
+        static std::array<VkVertexInputAttributeDescription, 2> AttributeDescriptions() {
+            std::array<VkVertexInputAttributeDescription, 2> descriptions;
+            descriptions[0].binding = 0;
+            descriptions[0].location = 0;
+            descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+            descriptions[0].offset = offsetof(Vertex, Position);
+            
+            descriptions[1].binding = 0;
+            descriptions[1].location = 1;
+            descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+            descriptions[1].offset = offsetof(Vertex, Color);
+            
+            return descriptions;
+        }
+    };
+    
     [[nodiscard]] GLFWwindow* Initialize();
     void DrawFrame();
     void Destroy();
@@ -80,7 +111,11 @@ private:
     std::vector<VkSemaphore> m_RenderFinishedSemaphores;
     std::vector<VkFence> m_InFlightFences;
     std::vector<VkFence> m_ImagesInFlight;
-    size_t m_CurrentFrame;
+    size_t m_CurrentFrame = 0;
+    VkBuffer m_VertexBuffer;
+    VkDeviceMemory m_VertexBufferMemory;
+    VkBuffer m_IndexBuffer;
+    VkDeviceMemory m_IndexBufferMemory;
     
     bool m_FramebufferResized = false;
     
@@ -98,6 +133,8 @@ private:
     bool CreateGraphicPipeline();
     bool CreateFramebuffers();
     bool CreateCommandPool();
+    bool CreateVertexBuffer();
+    bool CreateIndexBuffer();
     bool CreateCommandBuffers();
     bool CreateSyncObjects();
     
@@ -111,6 +148,21 @@ private:
     VkExtent2D ChooseSwapExtent(VkSurfaceCapabilitiesKHR capabilities) const;
     std::vector<char> ReadFile(const std::string& filename) const;
     VkShaderModule CreateShaderModule(const std::vector<char>& code) const;
+    uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
+    bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkBuffer* buffer, VkDeviceMemory* buffer_memory) const;
+    void CopyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) const;
+};
+
+const std::vector<Renderer::Vertex> Vertices = {
+    // Position         Color
+    {{-0.5f, -0.5f},    {1.0f, 0.0f, 0.0f}},
+    {{0.5f, -0.5f},     {0.0f, 1.0f, 0.0f}},
+    {{0.5f, 0.5f},      {0.0f, 0.0f, 1.0f}},
+    {{-0.5f, 0.5f},     {1.0f, 1.0f, 1.0f}}
+};
+
+const std::vector<uint16_t> Indices = {
+    0, 1, 2, 2, 3, 0
 };
 
 #endif
