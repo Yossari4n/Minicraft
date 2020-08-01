@@ -3,8 +3,11 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
+#include <chrono>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -33,6 +36,7 @@ const std::vector<const char*> DeviceExtensions = {
 };
 
 class Renderer {
+    // Contains hooks to all queue families required by renderer
     struct QueueFamilyIndices {
         std::optional<uint32_t> GraphicsFamily;
         std::optional<uint32_t> PresentFamily;
@@ -52,6 +56,12 @@ class Renderer {
         auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
         app->m_FramebufferResized = true;
     }
+    
+    struct UniformBufferObject {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 projection;
+    };
     
 public:
     struct Vertex {
@@ -89,11 +99,14 @@ public:
     
 private:
     GLFWwindow* m_Window;
+    
+    // Setup
     VkInstance m_Instance;
+    VkSurfaceKHR m_Surface;
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
     VkDevice m_Device;
+    
     VkQueue m_GraphicsQueue;
-    VkSurfaceKHR m_Surface;
     VkQueue m_PresentQueue;
     VkSwapchainKHR m_Swapchain;
     std::vector<VkImage> m_SwapchainImages;
@@ -101,6 +114,7 @@ private:
     VkExtent2D m_SwapchainExtent;
     std::vector<VkImageView> m_SwapchainImageViews;
     VkRenderPass m_RenderPass;
+    VkDescriptorSetLayout m_DescriptorSetLayout;
     VkPipelineLayout m_PipelineLayout;
     VkPipeline m_GraphicsPipeline;
     std::vector<VkFramebuffer> m_SwapchainFramebuffers;
@@ -116,11 +130,16 @@ private:
     VkDeviceMemory m_VertexBufferMemory;
     VkBuffer m_IndexBuffer;
     VkDeviceMemory m_IndexBufferMemory;
+    std::vector<VkBuffer> m_UniformBuffers;
+    std::vector<VkDeviceMemory> m_UniformBuffersMemory;
+    VkDescriptorPool m_DescriptorPool;
+    std::vector<VkDescriptorSet> m_DescriptorSets;
     
     bool m_FramebufferResized = false;
     
     void DestroySwapchain();
     void RecreateSwapchain();
+    void UpdateUniformBuffer(uint32_t index);
     
     void CreateWindow();
     bool CreateInstance();
@@ -130,11 +149,15 @@ private:
     bool CreateSwapchain();
     bool CreateImageViews();
     bool CreateRenderPass();
+    bool CreateDescriptorSetLayout();
     bool CreateGraphicPipeline();
     bool CreateFramebuffers();
     bool CreateCommandPool();
     bool CreateVertexBuffer();
     bool CreateIndexBuffer();
+    bool CreateUniformBuffers();
+    bool CreateDescriptorPool();
+    bool CreateDescriptorSet();
     bool CreateCommandBuffers();
     bool CreateSyncObjects();
     
