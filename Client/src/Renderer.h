@@ -6,6 +6,7 @@
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <stb/stb_image.h>
 
 #include <chrono>
 #include <iostream>
@@ -67,6 +68,7 @@ public:
     struct Vertex {
         glm::vec2 Position;
         glm::vec3 Color;
+        glm::vec2 TextureCoordinate;
         
         static VkVertexInputBindingDescription BingindDescription() {
             VkVertexInputBindingDescription description{};
@@ -77,8 +79,8 @@ public:
             return description;
         }
         
-        static std::array<VkVertexInputAttributeDescription, 2> AttributeDescriptions() {
-            std::array<VkVertexInputAttributeDescription, 2> descriptions;
+        static std::array<VkVertexInputAttributeDescription, 3> AttributeDescriptions() {
+            std::array<VkVertexInputAttributeDescription, 3> descriptions;
             descriptions[0].binding = 0;
             descriptions[0].location = 0;
             descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
@@ -88,6 +90,11 @@ public:
             descriptions[1].location = 1;
             descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
             descriptions[1].offset = offsetof(Vertex, Color);
+            
+            descriptions[2].binding = 0;
+            descriptions[2].location = 2;
+            descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+            descriptions[2].offset = offsetof(Vertex, TextureCoordinate);
             
             return descriptions;
         }
@@ -134,6 +141,10 @@ private:
     std::vector<VkDeviceMemory> m_UniformBuffersMemory;
     VkDescriptorPool m_DescriptorPool;
     std::vector<VkDescriptorSet> m_DescriptorSets;
+    VkImage m_TextureImage;
+    VkDeviceMemory m_TextureImageMemory;
+    VkImageView m_TextureImageView;
+    VkSampler m_Sampler;
     
     bool m_FramebufferResized = false;
     
@@ -153,6 +164,9 @@ private:
     bool CreateGraphicPipeline();
     bool CreateFramebuffers();
     bool CreateCommandPool();
+    bool CreateTextureImage();
+    bool CreateTextureImageView();
+    bool CreateTextureSampler();
     bool CreateVertexBuffer();
     bool CreateIndexBuffer();
     bool CreateUniformBuffers();
@@ -174,14 +188,20 @@ private:
     uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkBuffer* buffer, VkDeviceMemory* buffer_memory) const;
     void CopyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) const;
+    void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkImage* image, VkDeviceMemory* image_memory) const;
+    VkCommandBuffer BeginSingleTimeCommands() const;
+    void EndSingleTimeCommands(VkCommandBuffer buffer) const;
+    void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout) const;
+    void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const;
+    VkImageView CreateImageView(VkImage image, VkFormat format) const;
 };
 
 const std::vector<Renderer::Vertex> Vertices = {
-    // Position         Color
-    {{-0.5f, -0.5f},    {1.0f, 0.0f, 0.0f}},
-    {{0.5f, -0.5f},     {0.0f, 1.0f, 0.0f}},
-    {{0.5f, 0.5f},      {0.0f, 0.0f, 1.0f}},
-    {{-0.5f, 0.5f},     {1.0f, 1.0f, 1.0f}}
+    // Position         Color                   Texture Coordinates
+    {{-0.5f, -0.5f},    {1.0f, 0.0f, 0.0f},     {0.0f, 0.0f}},
+    {{0.5f, -0.5f},     {0.0f, 1.0f, 0.0f},     {1.0f, 0.0f}},
+    {{0.5f, 0.5f},      {0.0f, 0.0f, 1.0f},     {1.0f, 1.0f}},
+    {{-0.5f, 0.5f},     {1.0f, 1.0f, 1.0f},     {0.0f, 1.0f}}
 };
 
 const std::vector<uint16_t> Indices = {
