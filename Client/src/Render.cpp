@@ -1,5 +1,12 @@
 #include "Renderer.h"
 
+bool operator==(const Renderer::Vertex left, const Renderer::Vertex& right) {
+    return
+        left.Position == right.Position
+        && left.Color == right.Color
+        && left.TextureCoordinate == right.TextureCoordinate;
+}
+
 GLFWwindow* Renderer::Initialize() {
     CreateWindow();
     
@@ -18,6 +25,7 @@ GLFWwindow* Renderer::Initialize() {
     if (vulkan_available) vulkan_available = CreateTextureImage();
     if (vulkan_available) vulkan_available = CreateTextureImageView();
     if (vulkan_available) vulkan_available = CreateTextureSampler();
+    if (vulkan_available) vulkan_available = LoadModel();
     if (vulkan_available) vulkan_available = CreateVertexBuffer();
     if (vulkan_available) vulkan_available = CreateIndexBuffer();
     if (vulkan_available) vulkan_available = CreateUniformBuffers();
@@ -172,7 +180,7 @@ void Renderer::UpdateUniformBuffer(uint32_t index) {
     float delta = std::chrono::duration<float, std::chrono::seconds::period>(current - start).count();
     
     UniformBufferObject ubo{};
-    ubo.model = glm::rotate(glm::mat4(1.0f), delta * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.model = glm::mat4(1.0f); //glm::rotate(glm::mat4(1.0f), delta * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     ubo.view = glm::lookAt(glm::vec3(2.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     ubo.projection = glm::perspective(glm::radians(45.0f), m_SwapchainExtent.width / (float)m_SwapchainExtent.height, 0.1f, 10.0f);
     ubo.projection[1][1] *= -1;
@@ -641,7 +649,7 @@ bool Renderer::CreateDepthResources() {
 
 bool Renderer::CreateTextureImage() {
     int width, height, channels;
-    stbi_uc* pixels = stbi_load("resources/statue.jpg", &width, &height, &channels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     
     VkDeviceSize size = width * height * 4;
     
@@ -708,8 +716,48 @@ bool Renderer::CreateTextureSampler() {
     return true;
 }
 
+bool Renderer::LoadModel() {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn;
+    std::string err;
+    
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str())) {
+        std::cerr << "Failed to load object\n";
+        return false;
+    }
+    
+    std::unordered_map<Vertex, uint32_t> unique_vertices;
+    for (const auto& shape : shapes) {
+        for (const auto& index : shape.mesh.indices) {
+            Vertex vertex{};
+            
+            vertex.Position = {
+                attrib.vertices[3 * index.vertex_index + 0],
+                attrib.vertices[3 * index.vertex_index + 1],
+                attrib.vertices[3 * index.vertex_index + 2]
+            };
+            
+            vertex.TextureCoordinate = {
+                attrib.texcoords[2 * index.texcoord_index + 0],
+                1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+            };
+            
+            if (unique_vertices.count(vertex) == 0) {
+                unique_vertices[vertex] = static_cast<uint32_t>(m_Vertices.size());
+                m_Vertices.push_back(vertex);
+            }
+            
+            m_Indices.push_back(unique_vertices[vertex]);
+        }
+    }
+    
+    return true;
+}
+
 bool Renderer::CreateVertexBuffer() {
-    VkDeviceSize size = sizeof(Vertices[0]) * Vertices.size();
+    VkDeviceSize size = sizeof(m_Vertices[0]) * m_Vertices.size();
     
     VkBuffer staging_buffer;
     VkDeviceMemory staging_buffer_memory;
@@ -724,7 +772,7 @@ bool Renderer::CreateVertexBuffer() {
     
     void* data;
     vkMapMemory(m_Device, staging_buffer_memory, 0, size, 0, &data);
-    memcpy(data, Vertices.data(), size);
+    memcpy(data, m_Vertices.data(), size);
     vkUnmapMemory(m_Device, staging_buffer_memory);
     
     if (!CreateBuffer(size,
@@ -745,7 +793,7 @@ bool Renderer::CreateVertexBuffer() {
 }
 
 bool Renderer::CreateIndexBuffer() {
-    VkDeviceSize size = sizeof(Indices[0]) * Indices.size();
+    VkDeviceSize size = sizeof(m_Indices[0]) * m_Indices.size();
     
     VkBuffer staging_buffer;
     VkDeviceMemory staging_buffer_memory;
@@ -760,7 +808,7 @@ bool Renderer::CreateIndexBuffer() {
     
     void* data;
     vkMapMemory(m_Device, staging_buffer_memory, 0, size, 0, &data);
-    memcpy(data, Indices.data(), size);
+    memcpy(data, m_Indices.data(), size);
     vkUnmapMemory(m_Device, staging_buffer_memory);
     
     if (!CreateBuffer(size,
@@ -905,10 +953,10 @@ bool Renderer::CreateCommandBuffers() {
         VkBuffer vertex_buffers[] = { m_VertexBuffer };
         VkDeviceSize offsets[] = { 0 };
         vkCmdBindVertexBuffers(m_CommandBuffers[i], 0, 1, vertex_buffers, offsets);
-        vkCmdBindIndexBuffer(m_CommandBuffers[i], m_IndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(m_CommandBuffers[i], m_IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
         
         vkCmdBindDescriptorSets(m_CommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_PipelineLayout, 0, 1, &m_DescriptorSets[i], 0, nullptr);
-        vkCmdDrawIndexed(m_CommandBuffers[i], static_cast<uint32_t>(Indices.size()), 1, 0, 0, 0);
+        vkCmdDrawIndexed(m_CommandBuffers[i], static_cast<uint32_t>(m_Indices.size()), 1, 0, 0, 0);
         vkCmdEndRenderPass(m_CommandBuffers[i]);
         
         if (vkEndCommandBuffer(m_CommandBuffers[i]) != VK_SUCCESS) {

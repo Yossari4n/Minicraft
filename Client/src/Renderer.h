@@ -5,9 +5,14 @@
 #include <GLFW/glfw3.h>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
+
 #include <stb/stb_image.h>
+
+#include "tiny_obj_loader.h"
 
 #include <chrono>
 #include <iostream>
@@ -18,10 +23,13 @@
 #include <algorithm>
 #include <optional>
 #include <array>
+#include <unordered_map>
 
 constexpr unsigned int WIDTH = 800;
 constexpr unsigned int HEIGHT = 600;
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+const std::string MODEL_PATH = "resources/viking_room.obj";
+const std::string TEXTURE_PATH = "resources/viking_room.png";
 
 #ifdef NDEBUG
     constexpr bool EnableValidationLayers = false;
@@ -134,10 +142,15 @@ private:
     std::vector<VkFence> m_InFlightFences;
     std::vector<VkFence> m_ImagesInFlight;
     size_t m_CurrentFrame = 0;
+    
+    // Model
+    std::vector<Vertex> m_Vertices;
+    std::vector<uint32_t> m_Indices;
     VkBuffer m_VertexBuffer;
     VkDeviceMemory m_VertexBufferMemory;
     VkBuffer m_IndexBuffer;
     VkDeviceMemory m_IndexBufferMemory;
+    
     std::vector<VkBuffer> m_UniformBuffers;
     std::vector<VkDeviceMemory> m_UniformBuffersMemory;
     VkDescriptorPool m_DescriptorPool;
@@ -172,6 +185,7 @@ private:
     bool CreateTextureImage();
     bool CreateTextureImageView();
     bool CreateTextureSampler();
+    bool LoadModel();
     bool CreateVertexBuffer();
     bool CreateIndexBuffer();
     bool CreateUniformBuffers();
@@ -204,22 +218,20 @@ private:
     bool HasStencilComponent(VkFormat format) const;
 };
 
-const std::vector<Renderer::Vertex> Vertices = {
-    // Position             Color               Texture Coordinates
-    {{-0.5f, -0.5f, 0.0f},  {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, -0.5f, 0.0f},   {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, 0.5f, 0.0f},    {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, 0.5f, 0.0f},   {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+bool operator==(const Renderer::Vertex left, const Renderer::Vertex& right);
 
-    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, 0.5f, -0.5f},   {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, 0.5f, -0.5f},  {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+namespace std {
+
+template <>
+struct hash<Renderer::Vertex> {
+    size_t operator()(const Renderer::Vertex& vertex) const {
+        return
+            ((hash<glm::vec3>()(vertex.Position) ^
+            (hash<glm::vec3>()(vertex.Color) << 1)) >> 1) ^
+            (hash<glm::vec2>()(vertex.TextureCoordinate) << 1);
+    }
 };
 
-const std::vector<uint16_t> Indices = {
-    0, 1, 2, 2, 3, 0,
-    4, 5, 6, 6, 7, 4
-};
+}
 
 #endif
