@@ -150,14 +150,15 @@ private:
     VkDeviceMemory m_VertexBufferMemory;
     VkBuffer m_IndexBuffer;
     VkDeviceMemory m_IndexBufferMemory;
+    uint32_t m_MipLevels;
+    VkImage m_TextureImage;
+    VkDeviceMemory m_TextureImageMemory;
+    VkImageView m_TextureImageView;
     
     std::vector<VkBuffer> m_UniformBuffers;
     std::vector<VkDeviceMemory> m_UniformBuffersMemory;
     VkDescriptorPool m_DescriptorPool;
     std::vector<VkDescriptorSet> m_DescriptorSets;
-    VkImage m_TextureImage;
-    VkDeviceMemory m_TextureImageMemory;
-    VkImageView m_TextureImageView;
     VkSampler m_Sampler;
     VkImage m_DepthImage;
     VkDeviceMemory m_DepthImageMemory;
@@ -207,15 +208,16 @@ private:
     uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkBuffer* buffer, VkDeviceMemory* buffer_memory) const;
     void CopyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) const;
-    void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkImage* image, VkDeviceMemory* image_memory) const;
+    void CreateImage(uint32_t width, uint32_t height, uint32_t mip_levels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkImage* image, VkDeviceMemory* image_memory) const;
     VkCommandBuffer BeginSingleTimeCommands() const;
     void EndSingleTimeCommands(VkCommandBuffer buffer) const;
-    void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout) const;
+    void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, uint32_t mip_levels) const;
     void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const;
-    VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags) const;
+    VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags, uint32_t mip_levels) const;
     VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
     VkFormat FindDepthFormat() const;
     bool HasStencilComponent(VkFormat format) const;
+    void GenerateMipmaps(VkImage image, VkFormat format, int32_t width, int32_t height, uint32_t mip_levels) const;
 };
 
 bool operator==(const Renderer::Vertex left, const Renderer::Vertex& right);
