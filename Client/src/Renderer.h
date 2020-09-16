@@ -28,8 +28,8 @@
 constexpr unsigned int WIDTH = 800;
 constexpr unsigned int HEIGHT = 600;
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
-const std::string MODEL_PATH = "resources/viking_room.obj";
-const std::string TEXTURE_PATH = "resources/viking_room.png";
+const std::string MODEL_PATH = "resources/Grass_Block.obj";
+const std::string TEXTURE_PATH = "resources/Grass_Block.png";
 
 #ifdef NDEBUG
     constexpr bool EnableValidationLayers = false;
@@ -136,7 +136,7 @@ private:
     std::vector<VkFramebuffer> m_SwapchainFramebuffers;
     VkCommandPool m_CommandPool;
     std::vector<VkCommandBuffer> m_CommandBuffers;
-    //TODO std::array
+
     std::vector<VkSemaphore> m_ImageAvailableSemaphores;
     std::vector<VkSemaphore> m_RenderFinishedSemaphores;
     std::vector<VkFence> m_InFlightFences;
@@ -164,6 +164,12 @@ private:
     VkDeviceMemory m_DepthImageMemory;
     VkImageView m_DepthImageView;
     
+    // MSAA
+    VkSampleCountFlagBits m_MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    VkImage m_ColorImage;
+    VkDeviceMemory m_ColorImageMemory;
+    VkImageView m_ColorImageView;
+    
     bool m_FramebufferResized = false;
     
     void DestroySwapchain();
@@ -181,6 +187,7 @@ private:
     bool CreateDescriptorSetLayout();
     bool CreateGraphicPipeline();
     bool CreateCommandPool();
+    bool CreateColorResources();
     bool CreateDepthResources();
     bool CreateFramebuffers();
     bool CreateTextureImage();
@@ -208,7 +215,7 @@ private:
     uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkBuffer* buffer, VkDeviceMemory* buffer_memory) const;
     void CopyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) const;
-    void CreateImage(uint32_t width, uint32_t height, uint32_t mip_levels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkImage* image, VkDeviceMemory* image_memory) const;
+    void CreateImage(uint32_t width, uint32_t height, uint32_t mip_levels, VkSampleCountFlagBits samples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkImage* image, VkDeviceMemory* image_memory) const;
     VkCommandBuffer BeginSingleTimeCommands() const;
     void EndSingleTimeCommands(VkCommandBuffer buffer) const;
     void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, uint32_t mip_levels) const;
@@ -218,6 +225,7 @@ private:
     VkFormat FindDepthFormat() const;
     bool HasStencilComponent(VkFormat format) const;
     void GenerateMipmaps(VkImage image, VkFormat format, int32_t width, int32_t height, uint32_t mip_levels) const;
+    VkSampleCountFlagBits MaxUsableSampleCount() const;
 };
 
 bool operator==(const Renderer::Vertex left, const Renderer::Vertex& right);
